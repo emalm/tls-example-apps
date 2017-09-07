@@ -1,0 +1,10 @@
+#!/bin/bash
+
+bosh interpolate vars-template.yml --vars-store vars-store.yml > vars.yml
+
+bosh interpolate vars.yml --path /root_ca > ca.crt
+bosh interpolate vars.yml --path /client_cert > client.crt
+bosh interpolate vars.yml --path /client_key > client.key
+bosh interpolate vars.yml --path /server_cert > server.crt
+bosh interpolate vars.yml --path /server_key > server.key
+

@@ -1,0 +1,29 @@
+root_ca: ((root_ca.certificate))
+client_cert: ((client_cert.certificate))
+client_key: ((client_cert.private_key))
+server_cert: ((server_cert.certificate))
+server_key: ((server_cert.private_key))
+
+variables:
+- name: root_ca
+  type: certificate
+  options:
+    is_ca: true
+    common_name: rootCA
+- name: server_cert
+  type: certificate
+  options:
+    ca: root_ca
+    common_name: backend
+    extended_key_usage:
+    - server_auth
+    alternative_names:
+    - "*.backend.service.cf.internal"
+    - backend.service.cf.internal
+- name: client_cert
+  type: certificate
+  options:
+    ca: root_ca
+    common_name: frontend
+    extended_key_usage:
+    - client_auth
