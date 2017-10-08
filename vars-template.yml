@@ -18,8 +18,7 @@ variables:
     extended_key_usage:
     - server_auth
     alternative_names:
-    - "*.backend.service.cf.internal"
-    - backend.service.cf.internal
+    - "127.0.0.1"
 - name: client_cert
   type: certificate
   options:
