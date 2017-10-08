@@ -3,17 +3,26 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strings"
 )
+
+const defaultPort = "8080"
+const defaultTLSPort = "9999"
 
 func main() {
 	port := os.Getenv("PORT")
+	if port == "" {
+		port = defaultPort
+	}
+
+	tlsPort := os.Getenv("TLS_PORT")
+	if tlsPort == "" {
+		tlsPort = defaultTLSPort
+	}
+
 	certFilePath := os.Getenv("CF_INSTANCE_CERT")
 	keyFilePath := os.Getenv("CF_INSTANCE_KEY")
 	cert, err := tls.LoadX509KeyPair(certFilePath, keyFilePath)
@@ -58,56 +67,4 @@ func main() {
 	if err != nil {
 		fmt.Printf("error serving: %s\n", err.Error())
 	}
-}
-
-type handler struct {
-	authorizedAppGuids []string
-}
-
-func NewHandler(appGuidList string) (*handler, error) {
-	h := &handler{}
-	if appGuidList == "" {
-		return h, nil
-	}
-
-	appGuids := []string{}
-	err := json.Unmarshal([]byte(appGuidList), &appGuids)
-	if err != nil {
-		return nil, err
-	}
-
-	h.authorizedAppGuids = appGuids
-	return h, nil
-}
-
-func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	appGuid, instanceGuid, err := match(h.authorizedAppGuids, req.TLS)
-
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("client not authorized"))
-		return
-	}
-
-	w.Write([]byte(fmt.Sprintf("success for instance %s of app %s", instanceGuid, appGuid)))
-}
-
-var ErrNoMatch = errors.New("failed to find an authorized app guid")
-
-func match(appGuids []string, tlsInfo *tls.ConnectionState) (string, string, error) {
-	if appGuids == nil {
-		return "", "", nil
-	}
-
-	for _, appGuid := range appGuids {
-		for _, cert := range tlsInfo.PeerCertificates {
-			for _, ou := range cert.Subject.OrganizationalUnit {
-				if strings.HasPrefix(ou, "app:") && ou[4:] == appGuid {
-					return appGuid, cert.Subject.CommonName, nil
-				}
-			}
-		}
-	}
-
-	return "", "", ErrNoMatch
 }
