@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 )
 
 const defaultPort = "8080"
@@ -25,11 +26,18 @@ func main() {
 
 	certFilePath := os.Getenv("CF_INSTANCE_CERT")
 	keyFilePath := os.Getenv("CF_INSTANCE_KEY")
-	cert, err := tls.LoadX509KeyPair(certFilePath, keyFilePath)
+	interval := os.Getenv("CERT_RELOAD_INTERVAL")
+	if interval == "" {
+		interval = "5m"
+	}
+	intervalDuration, err := time.ParseDuration(interval)
 	if err != nil {
-		fmt.Printf("error reading cert from '%s' and '%s': %s\n", certFilePath, keyFilePath, err.Error())
+		fmt.Fprintf(os.Stderr, "failed to parse duration '%s'\n", interval)
 		os.Exit(2)
 	}
+
+	certificate := &Certificate{}
+	go certificate.ResetCertificatePeriodically(certFilePath, keyFilePath, intervalDuration)
 
 	caCertFilePath := os.Getenv("CA_CERT_FILE")
 	var certPool *x509.CertPool
@@ -45,9 +53,9 @@ func main() {
 	}
 
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      certPool,
-		ClientAuth:   tls.RequireAnyClientCert,
+		GetCertificate: certificate.GetCertificate,
+		RootCAs:        certPool,
+		ClientAuth:     tls.RequireAnyClientCert,
 	}
 
 	authorizedAppGuidList := os.Getenv("AUTHORIZED_APP_GUIDS")
@@ -57,13 +65,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	server := http.Server{
+	tlsServer := http.Server{
 		Addr:      "0.0.0.0:" + port,
 		Handler:   handler,
 		TLSConfig: tlsConfig,
 	}
 
-	err = server.ListenAndServeTLS("", "")
+	err = tlsServer.ListenAndServeTLS("", "")
 	if err != nil {
 		fmt.Printf("error serving: %s\n", err.Error())
 	}
