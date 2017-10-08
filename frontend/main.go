@@ -9,8 +9,14 @@ import (
 	"time"
 )
 
+const defaultPort = "8080"
+const defaultBackendPort = "9999"
+
 func main() {
 	port := os.Getenv("PORT")
+	if port == "" {
+		port = defaultPort
+	}
 
 	certFilePath := os.Getenv("CF_INSTANCE_CERT")
 	keyFilePath := os.Getenv("CF_INSTANCE_KEY")
@@ -82,7 +88,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	port := req.FormValue("port")
 	if port == "" {
-		port = "8080"
+		port = defaultBackendPort
 	}
 
 	client := h.client.GetClient()

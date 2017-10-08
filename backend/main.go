@@ -52,6 +52,17 @@ func main() {
 		certPool.AppendCertsFromPEM(certData)
 	}
 
+	instanceGuid := os.Getenv("CF_INSTANCE_GUID")
+	ipAddress := os.Getenv("CF_INSTANCE_INTERNAL_IP")
+	discovery := NewDiscoveryHandler(instanceGuid, ipAddress, tlsPort)
+
+	server := http.Server{
+		Addr:    "0.0.0.0:" + port,
+		Handler: discovery,
+	}
+
+	go server.ListenAndServe()
+
 	tlsConfig := &tls.Config{
 		GetCertificate: certificate.GetCertificate,
 		RootCAs:        certPool,
@@ -66,7 +77,7 @@ func main() {
 	}
 
 	tlsServer := http.Server{
-		Addr:      "0.0.0.0:" + port,
+		Addr:      "0.0.0.0:" + tlsPort,
 		Handler:   handler,
 		TLSConfig: tlsConfig,
 	}
