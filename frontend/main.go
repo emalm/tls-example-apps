@@ -1,11 +1,9 @@
 package main
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"os"
 	"time"
@@ -13,11 +11,17 @@ import (
 
 func main() {
 	port := os.Getenv("PORT")
+
 	certFilePath := os.Getenv("CF_INSTANCE_CERT")
 	keyFilePath := os.Getenv("CF_INSTANCE_KEY")
-	cert, err := tls.LoadX509KeyPair(certFilePath, keyFilePath)
+
+	interval := os.Getenv("CERT_RELOAD_INTERVAL")
+	if interval == "" {
+		interval = "5m"
+	}
+	intervalDuration, err := time.ParseDuration(interval)
 	if err != nil {
-		fmt.Printf("error reading cert from '%s' and '%s': %s\n", certFilePath, keyFilePath, err.Error())
+		fmt.Fprintf(os.Stderr, "failed to parse duration '%s'\n", interval)
 		os.Exit(2)
 	}
 
@@ -34,12 +38,11 @@ func main() {
 		certPool.AppendCertsFromPEM(certData)
 	}
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      certPool,
-	}
+	client := &HTTPClient{}
 
-	handler := NewHandler(tlsConfig)
+	go client.ResetClientPeriodically(certFilePath, keyFilePath, certPool, intervalDuration)
+
+	handler := NewHandler(client)
 
 	server := http.Server{
 		Addr:    "0.0.0.0:" + port,
@@ -53,12 +56,12 @@ func main() {
 }
 
 type handler struct {
-	tlsConfig *tls.Config
+	client *HTTPClient
 }
 
-func NewHandler(tlsConfig *tls.Config) *handler {
+func NewHandler(client *HTTPClient) *handler {
 	return &handler{
-		tlsConfig: tlsConfig,
+		client: client,
 	}
 }
 
@@ -82,22 +85,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		port = "8080"
 	}
 
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-				DualStack: true,
-			}).DialContext,
-			TLSClientConfig:       h.tlsConfig,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}
+	client := h.client.GetClient()
 
 	resp, err := client.Get("https://" + ip + ":" + port)
 	if err != nil {
