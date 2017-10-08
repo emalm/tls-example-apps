@@ -11,6 +11,8 @@ import (
 
 const defaultPort = "8080"
 const defaultBackendPort = "9999"
+const defaultBackendDiscoveryURL = "http://127.0.0.1:8080"
+const discoveryPollingInterval = 5 * time.Second
 
 func main() {
 	port := os.Getenv("PORT")
@@ -48,7 +50,16 @@ func main() {
 
 	go client.ResetClientPeriodically(certFilePath, keyFilePath, certPool, intervalDuration)
 
-	handler := NewHandler(client)
+	backends := NewBackends()
+
+	discoveryURL := os.Getenv("BACKEND_DISCOVERY_URL")
+	if discoveryURL == "" {
+		discoveryURL = defaultBackendDiscoveryURL
+	}
+
+	go DiscoverBackends(backends, discoveryURL, discoveryPollingInterval)
+
+	handler := NewHandler(client, backends)
 
 	server := http.Server{
 		Addr:    "0.0.0.0:" + port,
@@ -62,39 +73,33 @@ func main() {
 }
 
 type handler struct {
-	client *HTTPClient
+	client   *HTTPClient
+	backends *Backends
 }
 
-func NewHandler(client *HTTPClient) *handler {
+func NewHandler(client *HTTPClient, backends *Backends) *handler {
 	return &handler{
-		client: client,
+		client:   client,
+		backends: backends,
 	}
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	err := req.ParseForm()
+	location, err := h.backends.Pick()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error parsing request: " + err.Error()))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
 		return
 	}
 
-	ip := req.FormValue("ip")
-	if ip == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error: no 'ip' field in request"))
-		return
-	}
-
-	port := req.FormValue("port")
-	if port == "" {
-		port = defaultBackendPort
-	}
+	ip := location.IPAddress
+	port := location.TLSPort
 
 	client := h.client.GetClient()
 
 	resp, err := client.Get("https://" + ip + ":" + port)
 	if err != nil {
+		h.backends.Remove(location)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("error making request to " + ip + ":" + port + ": " + err.Error()))
 		return
@@ -110,12 +115,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if resp.StatusCode != http.StatusOK {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("backend failed to authorize frontend: "))
+		w.Write([]byte("backend " + location.InstanceGuid + " failed to authorize frontend: "))
 		w.Write(body)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("success: "))
+	w.Write([]byte("success from backend " + location.InstanceGuid + ": "))
 	w.Write(body)
 }
