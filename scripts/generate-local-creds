@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+export SCRIPTS_DIR="$(cd $(dirname "$BASH_SOURCE[0]") && pwd)"
+export CREDS_DIR="$(cd $SCRIPTS_DIR/../creds && pwd)"
+
+bosh interpolate \
+  $SCRIPTS_DIR/vars-template.yml \
+  --vars-store $CREDS_DIR/vars-store.yml \
+  > $CREDS_DIR/vars.yml
+
+bosh interpolate $CREDS_DIR/vars.yml --path /root_ca > $CREDS_DIR/ca.crt
+bosh interpolate $CREDS_DIR/vars.yml --path /client_cert > $CREDS_DIR/client.crt
+bosh interpolate $CREDS_DIR/vars.yml --path /client_key > $CREDS_DIR/client.key
+bosh interpolate $CREDS_DIR/vars.yml --path /server_cert > $CREDS_DIR/server.crt
+bosh interpolate $CREDS_DIR/vars.yml --path /server_key > $CREDS_DIR/server.key
+
