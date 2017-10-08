@@ -1,3 +1,5 @@
+.PHONY: all backend frontend
+
 all: backend frontend
 
 dirs:
