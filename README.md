@@ -112,3 +112,6 @@ CA_CERT_FILE=creds/ca.crt \
 curl http://127.0.0.1:8081
 ```
 
+## TODO
+
+- Once CF Container Networking provides [polyglot service discovery](https://docs.google.com/document/d/1Kix6QzXn8Q2Rbgdl97S4E6xsHUTSfKUQJKrBv7JzAVc/edit) natively, remove the public instance-discovery route on the backend app in favor of app-guid-based infrastructure DNS.
