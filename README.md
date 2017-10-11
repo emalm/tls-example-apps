@@ -27,13 +27,13 @@ apps_domain=bosh-lite.com # change for your environment
 Push the backend app:
 
 ```
-cf push backend -p bin/linux/backend -b binary_buildpack -c './backend' -m 32M -k 32M --no-start
+cf push backend -p bin/linux/backend -b binary_buildpack -c './backend' -m 32M -k 32M -i 2 --no-start
 ```
 
 Push the 'green' copy of the frontend app and grant it access to the backend app:
 
 ```
-cf push frontend-green -p bin/linux/frontend -b binary_buildpack -c './frontend' -m 32M -k 32M --no-start
+cf push frontend-green -p bin/linux/frontend -b binary_buildpack -c './frontend' -m 32M -k 32M -i 2 --no-start
 cf set-env frontend-green BACKEND_DISCOVERY_URL "http://backend.${apps_domain}"
 
 cf add-network-policy frontend-green --destination-app backend --protocol tcp --port 9999
@@ -42,7 +42,7 @@ cf add-network-policy frontend-green --destination-app backend --protocol tcp --
 Push the 'blue' copy of the frontend app and grant it access to the backend app:
 
 ```
-cf push frontend-blue -p bin/linux/frontend -b binary_buildpack -c './frontend' -m 32M -k 32M --no-start
+cf push frontend-blue -p bin/linux/frontend -b binary_buildpack -c './frontend' -m 32M -k 32M -i 2 --no-start
 cf set-env frontend-blue BACKEND_DISCOVERY_URL "http://backend.${apps_domain}"
 
 cf add-network-policy frontend-blue --destination-app backend --protocol tcp --port 9999
