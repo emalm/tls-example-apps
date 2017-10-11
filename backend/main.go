@@ -66,7 +66,7 @@ func main() {
 	tlsConfig := &tls.Config{
 		GetCertificate: certificate.GetCertificate,
 		RootCAs:        certPool,
-		ClientAuth:     tls.RequireAnyClientCert,
+		ClientAuth:     tls.RequireAndVerifyClientCert,
 	}
 
 	authorizedAppGuidList := os.Getenv("AUTHORIZED_APP_GUIDS")
