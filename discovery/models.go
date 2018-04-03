@@ -11,5 +11,5 @@ func (loc Location) Name() string {
 		return "instance " + loc.InstanceGuid + " at ip " + loc.IPAddress
 	}
 
-	return "instance at ip " + loc.IPAddress
+	return "instance at IP " + loc.IPAddress
 }
