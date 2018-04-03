@@ -1,4 +1,4 @@
-package main
+package certs
 
 import (
 	"crypto/tls"
@@ -13,7 +13,15 @@ type Certificate struct {
 	sync.Mutex
 }
 
-func (c *Certificate) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (c *Certificate) GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return c.getCertificate()
+}
+
+func (c *Certificate) GetClientCertificate(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	return c.getCertificate()
+}
+
+func (c *Certificate) getCertificate() (*tls.Certificate, error) {
 	c.Lock()
 	defer c.Unlock()
 	return c.certificate, nil

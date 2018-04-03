@@ -1,12 +1,16 @@
 package main
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/emalm/tls-example-apps/certs"
 )
 
 const defaultPort = "8080"
@@ -47,9 +51,30 @@ func main() {
 		certPool.AppendCertsFromPEM(certData)
 	}
 
-	client := &HTTPClient{}
+	certificate := &certs.Certificate{}
+	go certificate.ResetCertificatePeriodically(certFilePath, keyFilePath, intervalDuration)
 
-	go client.ResetClientPeriodically(certFilePath, keyFilePath, certPool, intervalDuration)
+	tlsConfig := &tls.Config{
+		GetClientCertificate: certificate.GetClientCertificate,
+		RootCAs:              certPool,
+	}
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+			TLSClientConfig:       tlsConfig,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
 
 	backends := NewBackends()
 	finder := constructLocationFinder()
@@ -70,11 +95,11 @@ func main() {
 }
 
 type handler struct {
-	client   *HTTPClient
+	client   *http.Client
 	backends *Backends
 }
 
-func NewHandler(client *HTTPClient, backends *Backends) *handler {
+func NewHandler(client *http.Client, backends *Backends) *handler {
 	return &handler{
 		client:   client,
 		backends: backends,
@@ -92,9 +117,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ip := location.IPAddress
 	port := location.TLSPort
 
-	client := h.client.GetClient()
-
-	resp, err := client.Get("https://" + ip + ":" + port)
+	resp, err := h.client.Get("https://" + ip + ":" + port)
 	if err != nil {
 		h.backends.Remove(location)
 		w.WriteHeader(http.StatusInternalServerError)

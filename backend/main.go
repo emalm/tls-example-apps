@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/emalm/tls-example-apps/certs"
 )
 
 const defaultPort = "8080"
@@ -35,7 +37,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	certificate := &Certificate{}
+	certificate := &certs.Certificate{}
 	go certificate.ResetCertificatePeriodically(certFilePath, keyFilePath, intervalDuration)
 
 	caCertFilePath := os.Getenv("CA_CERT_FILE")
