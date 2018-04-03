@@ -37,11 +37,14 @@ func (b *Backends) Pick() (discovery.Location, error) {
 
 }
 
-func (b *Backends) Add(l discovery.Location) {
+func (b *Backends) Add(locs []discovery.Location) {
 	b.Lock()
 	defer b.Unlock()
 
-	b.backendMap[l.IPAddress] = l
+	for _, loc := range locs {
+		b.backendMap[loc.IPAddress] = loc
+	}
+
 	b.unsafeRegenerateList()
 }
 

@@ -11,6 +11,7 @@ import (
 
 const defaultPort = "8080"
 const defaultBackendPort = "9999"
+const defaultBackendDomain = "127.0.0.1"
 const defaultBackendDiscoveryURL = "http://127.0.0.1:8080"
 const discoveryPollingInterval = 5 * time.Second
 
@@ -51,13 +52,9 @@ func main() {
 	go client.ResetClientPeriodically(certFilePath, keyFilePath, certPool, intervalDuration)
 
 	backends := NewBackends()
+	finder := constructLocationFinder()
 
-	discoveryURL := os.Getenv("BACKEND_DISCOVERY_URL")
-	if discoveryURL == "" {
-		discoveryURL = defaultBackendDiscoveryURL
-	}
-
-	go DiscoverBackends(backends, discoveryURL, discoveryPollingInterval)
+	go DiscoverBackends(backends, finder, discoveryPollingInterval)
 
 	handler := NewHandler(client, backends)
 
@@ -115,12 +112,38 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if resp.StatusCode != http.StatusOK {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("backend " + location.InstanceGuid + " failed to authorize frontend: "))
+		w.Write([]byte("backend " + location.Name() + " failed to authorize frontend: "))
 		w.Write(body)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("success from backend " + location.InstanceGuid + ": "))
+	w.Write([]byte("success from backend " + location.Name() + ": "))
 	w.Write(body)
+}
+
+func constructLocationFinder() LocationFinder {
+	if os.Getenv("USE_PLATFORM_SERVICE_DISCOVERY") != "true" {
+		discoveryURL := os.Getenv("BACKEND_DISCOVERY_URL")
+		if discoveryURL == "" {
+			discoveryURL = defaultBackendDiscoveryURL
+		}
+
+		return RequestFinder{URL: discoveryURL}
+	} else {
+		domain := os.Getenv("BACKEND_DOMAIN")
+		if domain == "" {
+			domain = defaultBackendDomain
+		}
+
+		port := os.Getenv("BACKEND_PORT")
+		if port == "" {
+			port = defaultBackendPort
+		}
+
+		return DNSFinder{
+			Domain: domain,
+			Port:   port,
+		}
+	}
 }

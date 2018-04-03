@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,7 +13,11 @@ import (
 	"github.com/emalm/tls-example-apps/discovery"
 )
 
-func DiscoverBackends(b *Backends, discoveryURL string, interval time.Duration) {
+type LocationFinder interface {
+	FindLocations() ([]discovery.Location, error)
+}
+
+func DiscoverBackends(b *Backends, finder LocationFinder, interval time.Duration) {
 	timer := time.NewTimer(0 * time.Second)
 
 	fmt.Printf("polling for backends every %s\n", interval)
@@ -20,7 +25,7 @@ func DiscoverBackends(b *Backends, discoveryURL string, interval time.Duration) 
 	for {
 		select {
 		case <-timer.C:
-			l, err := findLocation(discoveryURL)
+			l, err := finder.FindLocations()
 			if err == nil {
 				b.Add(l)
 			} else {
@@ -32,7 +37,11 @@ func DiscoverBackends(b *Backends, discoveryURL string, interval time.Duration) 
 	}
 }
 
-func findLocation(discoveryURL string) (discovery.Location, error) {
+type RequestFinder struct {
+	URL string
+}
+
+func (finder RequestFinder) FindLocations() ([]discovery.Location, error) {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
@@ -48,20 +57,47 @@ func findLocation(discoveryURL string) (discovery.Location, error) {
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
-	location := discovery.Location{}
 
-	resp, err := client.Get(discoveryURL)
+	resp, err := client.Get(finder.URL)
 	if err != nil {
-		return location, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return location, err
+		return nil, err
 	}
 
+	location := discovery.Location{}
 	err = json.Unmarshal(body, &location)
 
-	return location, err
+	return []discovery.Location{location}, err
+}
+
+type DNSFinder struct {
+	Domain string
+	Port   string
+}
+
+func (finder DNSFinder) FindLocations() ([]discovery.Location, error) {
+	resolver := net.Resolver{}
+
+	ips, err := resolver.LookupIPAddr(context.Background(), finder.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	locs := make([]discovery.Location, 0)
+
+	for _, ip := range ips {
+		if ip.IP.To4() != nil {
+			locs = append(locs, discovery.Location{
+				IPAddress: ip.IP.String(),
+				TLSPort:   finder.Port,
+			})
+		}
+	}
+
+	return locs, nil
 }

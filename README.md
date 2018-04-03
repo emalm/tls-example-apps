@@ -11,6 +11,8 @@ This collection of example applications contains a pair of applications designed
 
 ## Deploy to Cloud Foundry
 
+### Initial Setup
+
 Clone this repository and make the frontend and backend binaries:
 
 ```
@@ -25,7 +27,51 @@ Set up a base domain for apps:
 apps_domain=bosh-lite.com # change for your environment
 ```
 
-Push the backend app:
+Also, make sure you have logged into your CF deployment and targeted an org and a space to host the apps.
+
+If DNS-based platform-native service discovery is enabled for your CF deployment, choose "Option 1" below. Otherwise, choose "Option 2" for the frontend apps to discover the backend instances through a public route.
+
+### Option 1: Use DNS-Based Platform Service Discovery
+
+Push the backend app without a public route:
+
+```
+cf push backend -p bin/linux/backend -b binary_buildpack -c './backend' -m 32M -k 32M -i 2 -u process --no-start --no-route
+cf set-env backend USE_PLATFORM_SERVICE_DISCOVERY true
+```
+
+Map an internal service-discovery route to the backend:
+
+```
+backend_hostname=backend
+cf map-route backend apps.internal --hostname "$backend_hostname"
+```
+
+If another space has already taken the internal route with the `backend` hostname, feel free to use an alternative of your choice, so long as you configure that same choice on the frontend apps below.
+
+Push the 'green' copy of the frontend app and grant it access to the backend app:
+
+```
+cf push frontend-green -p bin/linux/frontend -b binary_buildpack -c './frontend' -m 32M -k 32M -i 2 --no-start
+cf set-env frontend-green USE_PLATFORM_SERVICE_DISCOVERY true
+cf set-env frontend-green BACKEND_DOMAIN "$backend_hostname.apps.internal"
+
+cf add-network-policy frontend-green --destination-app backend --protocol tcp --port 9999
+```
+
+Push the 'blue' copy of the frontend app and grant it access to the backend app:
+
+```
+cf push frontend-blue -p bin/linux/frontend -b binary_buildpack -c './frontend' -m 32M -k 32M -i 2 --no-start
+cf set-env frontend-blue USE_PLATFORM_SERVICE_DISCOVERY true
+cf set-env frontend-blue BACKEND_DOMAIN "$backend_hostname.apps.internal"
+
+cf add-network-policy frontend-blue --destination-app backend --protocol tcp --port 9999
+```
+
+### Option 2: Use Public Route for Service Discovery
+
+Push the backend app with its default route:
 
 ```
 cf push backend -p bin/linux/backend -b binary_buildpack -c './backend' -m 32M -k 32M -i 2 --no-start
@@ -49,7 +95,10 @@ cf set-env frontend-blue BACKEND_DISCOVERY_URL "http://backend.${apps_domain}"
 cf add-network-policy frontend-blue --destination-app backend --protocol tcp --port 9999
 ```
 
-Configure the backend app to authorize the 'green' frontend app:
+
+### Finish Configuration and Start the Apps
+
+Configure the backend app to authorize only the 'green' frontend app:
 
 ```
 FRONTEND_GREEN_APP_GUID=$(cf app frontend-green --guid)
@@ -78,7 +127,7 @@ The 'green' frontend app will report success, and the 'blue' one will report fai
 Reconfigure the backend to authorize the 'blue' frontend instead:
 
 ```
-cf set-env backend AUTHORIZED_APP_GUIDS "[\"$FRONTEND_GREEN_APP_GUID\"]"
+cf set-env backend AUTHORIZED_APP_GUIDS "[\"$FRONTEND_BLUE_APP_GUID\"]"
 cf restart backend
 ```
 
@@ -91,6 +140,8 @@ The CF deployment must be configured to use container networking and to enable t
 
 
 ## Local Development
+
+On Mac OS X:
 
 ```
 make all
@@ -112,7 +163,3 @@ CA_CERT_FILE=creds/ca.crt \
 
 curl http://127.0.0.1:8081
 ```
-
-## TODO
-
-- Once CF Container Networking provides [polyglot service discovery](https://docs.google.com/document/d/1Kix6QzXn8Q2Rbgdl97S4E6xsHUTSfKUQJKrBv7JzAVc/edit) natively, remove the public instance-discovery route on the backend app in favor of app-guid-based infrastructure DNS.

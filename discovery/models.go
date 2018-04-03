@@ -5,3 +5,11 @@ type Location struct {
 	IPAddress    string `json:"ip_address"`
 	TLSPort      string `json:"tls_port"`
 }
+
+func (loc Location) Name() string {
+	if loc.InstanceGuid != "" {
+		return "instance " + loc.InstanceGuid + " at ip " + loc.IPAddress
+	}
+
+	return "instance at ip " + loc.IPAddress
+}
