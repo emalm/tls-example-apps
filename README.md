@@ -29,9 +29,9 @@ apps_domain=bosh-lite.com # change for your environment
 
 Also, make sure you have logged into your CF deployment and targeted an org and a space to host the apps.
 
-If DNS-based platform-native service discovery is enabled for your CF deployment, choose "Option 1" below. Otherwise, choose "Option 2" for the frontend apps to discover the backend instances through a public route.
+If your CF deployment has enabled [DNS-based platform-native service discovery](https://github.com/cloudfoundry/cf-app-sd-release), choose [Option 1](#option-1-dns-service-discovery) below. Otherwise, choose [Option 2](#option-2-public-service-discovery) for the frontend apps to discover the backend instances through a public route.
 
-### Option 1: Use DNS-Based Platform Service Discovery
+### <a name="option-1-dns-service-discovery"></a>Option 1: Use DNS-Based Platform Service Discovery
 
 Push the backend app without a public route:
 
@@ -69,7 +69,9 @@ cf set-env frontend-blue BACKEND_DOMAIN "$backend_hostname.apps.internal"
 cf add-network-policy frontend-blue --destination-app backend --protocol tcp --port 9999
 ```
 
-### Option 2: Use Public Route for Service Discovery
+Skip over Option 2 to [finish configuring the apps and start them](#start-apps).
+
+### <a name="option-2-public-service-discovery"></a>Option 2: Use Public Route for Service Discovery
 
 Push the backend app with its default route:
 
@@ -96,7 +98,7 @@ cf add-network-policy frontend-blue --destination-app backend --protocol tcp --p
 ```
 
 
-### Finish Configuration and Start the Apps
+### <a name="start-apps"></a>Finish Configuration and Start the Apps
 
 Configure the backend app to authorize only the 'green' frontend app:
 
