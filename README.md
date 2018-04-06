@@ -5,6 +5,7 @@ This collection of example applications contains a pair of applications designed
 
 ## Dependencies
 
+- [Golang](https://golang.org/dl/), to build the app binaries
 - [CF CLI](https://github.com/cloudfoundry/cli/releases), v6.30.0 or later
 - CF user with the `network.write` scope, to set network policies
 
